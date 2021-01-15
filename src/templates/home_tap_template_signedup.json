@@ -1,0 +1,66 @@
+{
+	"type": "home",
+	"blocks": [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "*You are all set for receiving checkins*"
+			}
+		},
+		{
+			"type": "divider"
+		},
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "*Options*"
+			}
+		},
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "Select time of day to receive Check In _(5 min interval)_:"
+			}
+		},
+		{
+			"type": "actions",
+			"elements": [
+				{
+					"type": "timepicker",
+					"initial_time": "09:00",
+					"placeholder": {
+						"type": "plain_text",
+						"text": "Select time",
+						"emoji": true
+					},
+					"action_id": "time_for_checkin"
+				}
+			]
+		},
+		{
+			"type": "actions",
+			"elements": [
+				{
+					"type": "checkboxes",
+					"options": [
+						{
+							"text": {
+								"type": "mrkdwn",
+								"text": "Get Checkin for *same day*"
+							},
+							"description": {
+								"type": "mrkdwn",
+								"text": "_Get Checkin for day before or same day_"
+							},
+							"value": "value-0"
+						}
+					],
+					"action_id": "same_day_checkin"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,52 @@
+{
+	"type": "modal",
+	"title": {
+		"type": "plain_text",
+		"text": "Checkin Service",
+		"emoji": true
+	},
+	"submit": {
+		"type": "plain_text",
+		"text": "Next",
+		"emoji": true
+	},
+	"close": {
+		"type": "plain_text",
+		"text": "Previous",
+		"emoji": true
+	},
+	"blocks": [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": ""
+			}
+		},
+		{
+			"type": "divider"
+		},
+		{
+			"type": "divider"
+		},
+		{
+			"dispatch_action": true,
+			"type": "input",
+			"optional": true,
+			"block_id": "add_new_project_block",
+			"element": {
+				"type": "plain_text_input",
+				"action_id": "add_project-action",
+				"placeholder": {
+					"type": "plain_text",
+					"text": "Project name"
+				}
+			},
+			"label": {
+				"type": "plain_text",
+				"text": "Add new project",
+				"emoji": true
+			}
+		}
+	]
+}

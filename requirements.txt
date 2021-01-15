@@ -1,0 +1,9 @@
+pynamodb==4.3.1
+requests==2.24.0
+injector
+pytz
+ruamel.yaml
+behave
+pylint
+boto3 #no-deploy
+botocore #no-deploy

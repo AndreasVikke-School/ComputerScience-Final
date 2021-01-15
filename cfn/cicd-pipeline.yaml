@@ -1,0 +1,943 @@
+---
+Parameters:
+  EnvType: 
+    Description: Environment type.
+    Default: dev
+    Type: String
+    AllowedValues: 
+      - prod
+      - dev
+    ConstraintDescription: must specify prod or test.
+  GithubRepo:
+    Default: xxx
+    Type: String
+  DataBaseStackName:
+    Default: database
+    Type: String
+  CIPipelineStackName:
+    Default: ci-pipeline
+    Type: String
+  CDPipelineStackName:
+    Default: cd-pipeline
+    Type: String
+
+Conditions: 
+  CreateProdResources: !Equals [ !Ref EnvType, prod ]
+  CreateDevResources: !Equals [ !Ref EnvType, dev ]
+
+Resources:
+  CicdRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      RoleName: !Sub '${AWS::StackName}-cicd-Role'
+      Description: Python Lambda deployment pipeline Role
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service:
+                - cloudformation.amazonaws.com
+                - codebuild.amazonaws.com
+                - codepipeline.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: "IAMRolePolicyPermission"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action: 
+                  # - iam:*
+                  - iam:Get*
+                  - iam:List*
+                  - iam:Simulate*
+                  - iam:Create*
+                  - iam:Update*
+                  - iam:Delete*
+                  - iam:Put*
+                  - iam:Add*
+                  - iam:Remove*
+                  - iam:Attach*
+                  - iam:Detach*
+                  - iam:Tag*
+                  - iam:Untag*
+                  - iam:Pass*
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:policy/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/*
+
+  GHWebHookBucketArtifacts:
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-gh-webhook
+      VersioningConfiguration:
+        Status: "Enabled"
+    Type: "AWS::S3::Bucket"
+
+  CodeBuildProjectFeature:
+    Type: "AWS::CodeBuild::Project"
+    Condition: CreateDevResources
+    Properties:
+      Name: !Sub ${AWS::StackName}-gh-webhook-feature-branch
+      Description: Cloudformation feature branch
+      Artifacts:
+        Location: !Ref GHWebHookBucketArtifacts
+        Name: "feature.zip"
+        Packaging: "ZIP"
+        Type: "S3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/ubuntu-base:14.04"
+        Type: "LINUX_CONTAINER"
+      ServiceRole: !Ref CicdRole
+      Source:
+        Auth: 
+          Type: OAUTH
+        BuildSpec: |
+          version: 0.2
+
+          phases:
+            build:
+              commands:
+                - echo "Feature Branch Zipped!"
+
+          artifacts:
+            files:
+              - "**/*"
+        GitCloneDepth: 1
+        Location: !Ref GithubRepo
+        ReportBuildStatus: true
+        Type: GITHUB
+      SourceVersion: feature/*
+      TimeoutInMinutes: 5
+      Triggers:
+        Webhook: true
+        FilterGroups:
+          - - Type: EVENT
+              Pattern: PUSH
+              ExcludeMatchedPattern: false
+            - Type: HEAD_REF
+              Pattern: refs/heads/feature/*
+              ExcludeMatchedPattern: false
+
+  CodeBuildProjectMaster:
+    Type: "AWS::CodeBuild::Project"
+    Condition: CreateDevResources
+    Properties:
+      Name: !Sub ${AWS::StackName}-gh-webhook-master-branch
+      Description: Cloudformation master branch
+      Artifacts:
+        Location: !Ref GHWebHookBucketArtifacts
+        Name: "master.zip"
+        Packaging: "ZIP"
+        Type: "S3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/ubuntu-base:14.04"
+        Type: "LINUX_CONTAINER"
+      ServiceRole: !Ref CicdRole
+      Source:
+        Auth: 
+          Type: OAUTH
+        BuildSpec: |
+          version: 0.2
+
+          phases:
+            build:
+              commands:
+                - echo "Master Branch Zipped!"
+
+          artifacts:
+            files:
+              - "**/*"
+        GitCloneDepth: 1
+        Location: !Ref GithubRepo
+        ReportBuildStatus: true
+        Type: GITHUB
+      SourceVersion: master
+      TimeoutInMinutes: 5
+      Triggers:
+        Webhook: true
+        FilterGroups:
+          - - Type: EVENT
+              Pattern: PUSH
+              ExcludeMatchedPattern: false
+            - Type: HEAD_REF
+              Pattern: refs/heads/master
+              ExcludeMatchedPattern: false
+
+  CodeBuildProjectTag:
+    Type: "AWS::CodeBuild::Project"
+    Condition: CreateProdResources
+    Properties:
+      Name: !Sub ${AWS::StackName}-gh-webhook-tag-branch
+      Description: Cloudformation Tag branch
+      Artifacts:
+        Location: !Ref GHWebHookBucketArtifacts
+        Name: "master.zip"
+        Packaging: "ZIP"
+        Type: "S3"
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/ubuntu-base:14.04"
+        Type: "LINUX_CONTAINER"
+      ServiceRole: !Ref CicdRole
+      Source:
+        Auth: 
+          Type: OAUTH
+        BuildSpec: |
+          version: 0.2
+
+          phases:
+            build:
+              commands:
+                - echo "Tag Branch Zipped"
+
+          artifacts:
+            files:
+              - "**/*"
+        GitCloneDepth: 1
+        Location: !Ref GithubRepo
+        ReportBuildStatus: true
+        Type: GITHUB
+      SourceVersion: tag
+      TimeoutInMinutes: 5
+      Triggers:
+        Webhook: true
+        FilterGroups:
+          - - Type: EVENT
+              Pattern: PUSH
+              ExcludeMatchedPattern: false
+            - Type: HEAD_REF
+              Pattern: refs/tags/v*
+              ExcludeMatchedPattern: false
+
+  CIArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-${CIPipelineStackName}-artifactbucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      AccessControl: Private
+
+# CI Pipeline
+  CIPipeline: 
+    Type: AWS::CodePipeline::Pipeline 
+    Condition: CreateDevResources
+    Properties: 
+      Name: ci-pipeline
+      RoleArn: !GetAtt [ CicdRole, Arn ]
+      RestartExecutionOnUpdate: true
+      ArtifactStore:
+        Type: S3 
+        Location: !Ref CIArtifactBucket
+      Stages:
+        # Source stage
+        - Name: Source
+          Actions:
+          - Name: Source
+            Namespace: SourceVariables
+            ActionTypeId:
+              Category: Source
+              Owner: AWS
+              Version: "1"
+              Provider: S3
+            Configuration:
+              S3Bucket: !Ref GHWebHookBucketArtifacts
+              S3ObjectKey: feature.zip
+            OutputArtifacts:
+            - Name: source
+            RunOrder: 1
+
+        # Static code analysis stage
+        - Name: StaticCodeAnalysis
+          Actions:
+          
+          - Name: cfn-lint
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Test
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CIPipelineStackName}-cfn-lint
+            OutputArtifacts:
+            - Name: cfn
+            RunOrder: 1
+
+          - Name: cfn-nag
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Test
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CIPipelineStackName}-cfn-nag
+            RunOrder: 1
+
+          - Name: py-lint
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Test
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CIPipelineStackName}-py-lint
+            RunOrder: 1
+
+          - Name: cfn-templates-publish
+            InputArtifacts:
+            - Name: cfn
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: S3
+            Configuration:
+              Extract: "true"
+              BucketName: !Ref CIArtifactBucket
+            OutputArtifacts: []
+            RunOrder: 2
+
+        # Update pipeline
+        - Name: UpdatePipeline
+          Actions:
+          - Name: UpdatePipeline
+            InputArtifacts:
+            - Name: cfn
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: CloudFormation
+            Configuration:
+              ActionMode: CREATE_UPDATE
+              RoleArn:  !GetAtt [ CicdRole, Arn ] 
+              Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+              StackName: !Ref AWS::StackName
+              OutputFileName: cicdpipeline
+              TemplatePath: cfn::cicd-pipeline.yaml
+            OutputArtifacts: []
+            RunOrder: 1
+
+        # Test pipeline 
+        - Name: TestPipeline
+          Actions: 
+          - Name: py-unittest
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Test
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CIPipelineStackName}-py-unittest
+            RunOrder: 1
+          - Name: behave-accepttence
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CDPipelineStackName}-behave-accepttence
+            OutputArtifacts: []
+            RunOrder: 2
+
+  CICfnLintLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateDevResources
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CIPipelineStackName}-cfn-lint
+      RetentionInDays: 30
+
+  CICfnLintProject:
+    Type: AWS::CodeBuild::Project
+    Condition: CreateDevResources
+    Properties: 
+      Name: !Sub ${CIPipelineStackName}-cfn-lint
+      Description: Cloudformation linter
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CIPipelineStackName}-cfn-lint
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - pip install cfn-lint
+            build:
+              commands:
+                - cfn-lint --version
+                # - cfn-lint --help
+                - cfn-lint cfn/*.yaml # || exit 0
+          artifacts:
+            discard-paths: yes
+            files:
+              cfn/**/*
+        Type: CODEPIPELINE
+
+  CfnNagLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateDevResources
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CIPipelineStackName}-cfn-nag
+      RetentionInDays: 30
+
+  CfnNagProject:
+    Type: AWS::CodeBuild::Project
+    Condition: CreateDevResources
+    Properties: 
+      Name: !Sub ${CIPipelineStackName}-cfn-nag
+      Description: Cloudformation compliance-as-code
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CIPipelineStackName}-cfn-nag
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                ruby: latest
+              commands:
+                - gem install cfn-nag
+            build:
+              commands:
+                - cfn_nag_scan --version
+                # - cfn_nag_scan --help
+                - cfn_nag_scan --input-path cfn/
+        Type: CODEPIPELINE
+
+  PyLintLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateDevResources
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CIPipelineStackName}-py-lint
+      RetentionInDays: 30
+
+  PyLintProject:
+    Type: AWS::CodeBuild::Project
+    Condition: CreateDevResources
+    Properties: 
+      Name: !Sub ${CIPipelineStackName}-py-lint
+      Description: Python linter
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CIPipelineStackName}-py-lint
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - pip install --upgrade pip
+                - pip install astroid
+                - pip install pylint --upgrade
+            build:
+              commands:
+                - pylint --version
+                # - pylint --help
+                # - pylint --good-names=i,j,k,ex,Run,_,pk,x,y
+                - cd src
+                - find . -type f -name "*.py" | xargs pylint --rcfile=../tools/.pylintrc
+                # - pylint src/**/*.py || exit 0
+          artifacts:
+            discard-paths: yes
+            files:
+              src/**/*
+        Type: CODEPIPELINE
+
+  UnittestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateDevResources
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CIPipelineStackName}-py-unittest
+      RetentionInDays: 30
+
+  UnittestProject:
+    Type: AWS::CodeBuild::Project
+    Condition: CreateDevResources
+    Properties: 
+      Name: !Sub ${CIPipelineStackName}-py-unittest
+      Description: This sections tests our python files with unittest
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CIPipelineStackName}-py-unittest
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - pip install --upgrade pip
+            build:
+              commands:
+                - mkdir -p tst/unit
+                - cd tst/unit
+                - python -m unittest
+          artifacts:
+            discard-paths: yes
+            files:
+              src/**/*
+        Type: CODEPIPELINE
+
+  BehaveAccepttenceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CDPipelineStackName}-behave-accepttence
+      RetentionInDays: 30
+
+  BehaveAccepttenceProject:
+    Type: AWS::CodeBuild::Project
+    Properties: 
+      Name: !Sub ${CDPipelineStackName}-behave-accepttence
+      Description: Cloudformation behave accepttence
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CDPipelineStackName}-behave-accepttence
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - pip install --upgrade pip
+                - pip install behave
+                - pip install -r sls/requirements.txt
+            build:
+              commands:
+                - behave tst/accept
+          artifacts:
+            files:
+              - sls/**/*
+        Type: CODEPIPELINE     
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Condition: CreateDevResources
+    Properties:
+      TopicName: SNSTopic
+      Subscription:
+        - Endpoint: mef@efio.dk
+          Protocol: email
+
+  SNSPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Condition: CreateDevResources
+    Properties:
+      PolicyDocument:
+        Id: TopicPolicy
+        Version: '2012-10-17'
+        Statement:
+        - Sid: CodeNotification_publish
+          Effect: Allow
+          Principal:
+            Service: codestar-notifications.amazonaws.com
+          Action: SNS:Publish
+          Resource: !Ref SNSTopic
+      Topics:
+      - !Ref SNSTopic
+
+  NotificationRule:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Condition: CreateDevResources
+    Properties: 
+      DetailType: FULL
+      EventTypeIds:
+        - codepipeline-pipeline-action-execution-succeeded
+        - codepipeline-pipeline-action-execution-failed
+      Name: NotificationRule
+      Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CIPipeline}
+      Status: ENABLED
+      Targets: 
+        - TargetType: SNS 
+          TargetAddress: !Ref SNSTopic
+
+# CD Pipeline
+  CDArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-${CDPipelineStackName}-artifactbucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      AccessControl: Private
+
+  CDPipeline: 
+    Type: AWS::CodePipeline::Pipeline 
+    Properties: 
+      Name: cd-pipeline
+      RoleArn: !GetAtt [ CicdRole, Arn ]
+      RestartExecutionOnUpdate: true
+      ArtifactStore:
+        Type: S3 
+        Location: !Ref CDArtifactBucket
+      Stages:
+        # Source stage
+        - Name: Source
+          Actions:
+          - Name: Source
+            Namespace: SourceVariables
+            ActionTypeId:
+              Category: Source
+              Owner: AWS
+              Version: "1"
+              Provider: S3
+            Configuration:
+              S3Bucket: !Ref GHWebHookBucketArtifacts
+              S3ObjectKey: master.zip
+            OutputArtifacts:
+            - Name: source
+            RunOrder: 1
+
+        # Static code analysis stage
+        - Name: StaticCodeAnalysis
+          Actions:
+          - Name: cfn-lint
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Test
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CDPipelineStackName}-cfn-lint
+            OutputArtifacts:
+            - Name: cfn
+            RunOrder: 1
+
+          - Name: cfn-templates-publish
+            InputArtifacts:
+            - Name: cfn
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: S3
+            Configuration:
+              Extract: "true"
+              BucketName: !Ref CDArtifactBucket
+            OutputArtifacts: []
+            RunOrder: 2
+
+        # Update pipleine
+        - Name: UpdatePipeline
+          Actions:
+          - Name: UpdatePipeline
+            InputArtifacts:
+            - Name: cfn
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: CloudFormation
+            Configuration:
+              ActionMode: CREATE_UPDATE
+              RoleArn:  !GetAtt [ CicdRole, Arn ] 
+              Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+              StackName: !Ref AWS::StackName
+              OutputFileName: cicdpipeline
+              TemplatePath: cfn::cicd-pipeline.yaml
+              ParameterOverrides: !Sub '{"EnvType": "${EnvType}"}'
+            OutputArtifacts: []
+            RunOrder: 1
+ 
+        # Deploy services
+        - Name: DeployServices
+          Actions:
+          - Name: DeployDatabase
+            InputArtifacts:
+            - Name: cfn
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: CloudFormation
+            Configuration:
+              ActionMode: CREATE_UPDATE
+              RoleArn: !GetAtt [ CicdRole, Arn ] 
+              Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+              StackName: !Ref DataBaseStackName
+              OutputFileName: database
+              TemplatePath: cfn::database.yaml
+            OutputArtifacts: []
+            RunOrder: 1
+          - Name: DeployServices
+            InputArtifacts:
+            - Name: cfn
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: CloudFormation
+            Configuration:
+              ActionMode: CREATE_UPDATE
+              RoleArn: !GetAtt [ CicdRole, Arn ]
+              Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+              StackName: services
+              OutputFileName: services
+              TemplatePath: cfn::services.yaml
+            OutputArtifacts: []
+            RunOrder: 1
+
+        # Package Serverless
+        - Name: Package-SLS
+          Actions:
+          - Name: package-sls
+            InputArtifacts:
+            - Name: source
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CDPipelineStackName}-package-sls
+            OutputArtifacts:
+            - Name: package
+            RunOrder: 1
+
+        # Deploy Serverless
+        - Name: Deploy-SLS
+          Actions:
+          - Name: deploy-sls
+            InputArtifacts:
+            - Name: package
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            Configuration:
+              ProjectName: !Sub ${CDPipelineStackName}-deploy-sls
+            OutputArtifacts:
+            - Name: deploy
+            RunOrder: 1
+    
+  CDCfnLintLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CDPipelineStackName}-cfn-lint
+      RetentionInDays: 30
+
+  CDCfnLintProject:
+    Type: AWS::CodeBuild::Project
+    Properties: 
+      Name: !Sub ${CDPipelineStackName}-cfn-lint
+      Description: Cloudformation linter
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CDPipelineStackName}-cfn-lint
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - pip install cfn-lint
+            build:
+              commands:
+                - cfn-lint --version
+                # - cfn-lint --help
+                - cfn-lint cfn/*.yaml # || exit 0
+          artifacts:
+            discard-paths: yes
+            files:
+              cfn/**/*
+        Type: CODEPIPELINE
+
+  PackageSLSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CDPipelineStackName}-package-sls
+      RetentionInDays: 30
+
+  PackageSLSProject:
+    Type: AWS::CodeBuild::Project
+    Properties: 
+      Name: !Sub ${CDPipelineStackName}-package-sls
+      Description: Cloudformation package sls
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CDPipelineStackName}-package-sls
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - npm install --silent --no-progress -g serverless
+            build:
+              commands:
+                - mkdir -p target/stg
+                - cd sls
+                - sls plugin install -n serverless-python-requirements 
+                - sls plugin install -n serverless-plugin-ifelse
+                - sls plugin install -n serverless-step-functions
+                - sls package --package ../target/${EnvType} --stage ${EnvType} -v -r eu-central-1
+                - python ../tools/add_export.py ${EnvType}
+          artifacts:
+            files:
+              - target/**/*
+              - sls/**/*
+        Type: CODEPIPELINE
+
+  DeploySLSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${CDPipelineStackName}-deploy-sls
+      RetentionInDays: 30
+
+  DeploySLSProject:
+    Type: AWS::CodeBuild::Project
+    Properties: 
+      Name: !Sub ${CDPipelineStackName}-deploy-sls
+      Description: Cloudformation deploy sls
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${CDPipelineStackName}-deploy-sls
+          Status: ENABLED
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !Ref CicdRole
+      Source: 
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: latest
+              commands:
+                - npm install --silent --no-progress -g serverless
+            build:
+              commands:
+                - cd sls
+                - sls plugin install -n serverless-python-requirements
+                - sls plugin install -n serverless-plugin-ifelse
+                - sls plugin install -n serverless-step-functions
+                - sls deploy --stage ${EnvType} --package ../target/${EnvType} -v -r eu-central-1
+          artifacts:
+            files:
+              - sls/**/*
+        Type: CODEPIPELINE
+
+Outputs:
+  GHWebhookBucket:
+    Description: The Bucket name of Github Webhook
+    Value: !Ref GHWebHookBucketArtifacts
+    Export:
+      Name: "gh-webhook-bucket"
+
+  EnviromentType:
+    Description: The Enviroment type
+    Value: !Ref EnvType
+    Export:
+      Name: "pipeline-enviroment-type"

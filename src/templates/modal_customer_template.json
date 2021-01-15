@@ -1,0 +1,102 @@
+{
+	"type": "modal",
+	"title": {
+		"type": "plain_text",
+		"text": "Checkin Service",
+		"emoji": true
+	},
+	"submit": {
+		"type": "plain_text",
+		"text": "Next",
+		"emoji": true
+	},
+	"close": {
+		"type": "plain_text",
+		"text": "Cancel",
+		"emoji": true
+	},
+	"blocks": [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": ""
+			}
+		},
+		{
+			"type": "actions",
+			"block_id": "checkbox_customers",
+			"elements": [
+				{
+					"type": "checkboxes",
+					"action_id": "customers",
+					"options": [
+						
+					]
+				}
+			]
+		},
+		{
+			"type": "actions",
+			"block_id": "all_customers",
+			"elements": [
+				{
+					"type": "static_select",
+					"action_id": "activity",
+					"placeholder": {
+						"type": "plain_text",
+						"text": "All Customers",
+						"emoji": true
+					},
+					"options": [
+						{
+							"text": {
+								"type": "plain_text",
+								"text": "Customer D",
+								"emoji": true
+							},
+							"value": "value-0"
+						},
+						{
+							"text": {
+								"type": "plain_text",
+								"text": "Customer E",
+								"emoji": true
+							},
+							"value": "value-1"
+						}
+					]
+				}
+			]
+		},
+		{
+			"type": "divider"
+		},
+		{
+			"type": "actions",
+			"block_id": "activities",
+			"elements": [
+				{
+					"type": "checkboxes",
+					"action_id": "activity",
+					"options": [
+						{
+							"text": {
+								"type": "mrkdwn",
+								"text": "Efio"
+							},
+							"value": "activity;Efio"
+						},
+						{
+							"text": {
+								"type": "mrkdwn",
+								"text": "Absence"
+							},
+							"value": "activity;Absence"
+						}
+					]
+				}
+			]
+		}
+	]
+}

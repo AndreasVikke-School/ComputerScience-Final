@@ -1,0 +1,27 @@
+{
+	"type": "home",
+	"blocks": [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "To get started, you can use the `/signup` command or click the `Sign Up Button`, to sign up for checkins."
+			}
+		},
+		{
+			"type": "actions",
+			"elements": [
+				{
+					"type": "button",
+					"style": "primary",
+					"text": {
+						"type": "plain_text",
+						"text": "Sign Up",
+						"emoji": true
+					},
+					"value": "signup;signup"
+				}
+			]
+		}
+	]
+}

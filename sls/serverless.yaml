@@ -1,0 +1,274 @@
+---
+service: cicd-pipeline-serverless
+
+frameworkVersion: ">=1.1.0"
+
+plugins:
+  - serverless-python-requirements
+  - serverless-plugin-ifelse
+  - serverless-step-functions
+custom:
+  currentStage: ${opt:stage, self:provider.stage}
+  serverlessIfElse:
+      - If: '"${self:custom.currentStage}" != "dev"'
+        Exclude:
+          - functions.cwgh
+      - If: '"${self:custom.currentStage}" != "prod"'
+        Set:
+          provider.environment.SlackAuth: "xxx"
+          provider.environment.CloseAuth: "xxx"
+
+package:
+  exclude:
+    - node_modules/**/*
+    - README.md
+    - package.json
+    - package-lock.json
+    - requirements.txt
+  include:
+    - ../src/**/*
+
+provider:
+  name: aws
+  stage: ${opt:stage, 'dev'}
+  runtime: python3.8
+  region: eu-central-1
+  environment:
+    CheckInTableName:
+      Fn::ImportValue:
+        "database-CheckInTableName"
+    ConsultantsTableName:
+      Fn::ImportValue:
+        "database-ConsultantsTableName"
+    OnlineStatusesTableName:
+      Fn::ImportValue:
+        "database-OnlineStatusesTableName"
+    SlackAuth: "xxx"
+    CloseAuth: "xxx"
+    # Only use Admin for Emojie Status
+    SlackAdminAuth: "xxx"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - codepipeline:GetPipeline
+        - codepipeline:GetPipelineState
+        - codepipeline:GetPipelineExecution
+        - codebuild:BatchGet*
+        - codebuild:List*
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - sqs:SendMessage
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sns:subscribe
+        - sns:publish
+        - states:ListActivities
+        - states:SendTaskSuccess
+        - states:StartExecution
+        - cloudformation:ListExports
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+      Resource: 
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/*"
+      
+
+functions:
+  process_user_input:
+    handler: src/process_user_input.process
+    environment:
+      SEND_RECEIPT_MACHINE:
+        Ref: ReceiptStateMachine
+    events:
+      - http:
+          path: process-user-input
+          method: post
+          cors: true
+          integration: lambda
+
+  process_event_api:
+    handler: src/process_event_api.process
+    events:
+      - http:
+          path: process-event-api
+          method: post
+          cors: true
+          integration: lambda
+
+  cwgh:
+    handler: src/cw_github_status.handler
+    environment:
+      ACCESS_TOKEN: "{{resolve:ssm:/github/personal_access_token:1}}"
+      GITHUB_BUCKET:
+        Fn::ImportValue:
+          "gh-webhook-bucket"
+    events:
+      - cloudwatchEvent:
+          event:
+            source:
+              - 'aws.codepipeline'
+            detail-type:
+              - "CodePipeline Pipeline Execution State Change"
+            detail:
+              state:
+                - "STARTED"
+                - "SUCCEEDED"
+                - "FAILED"
+
+  predict_customers:
+    handler: src/predictors/predict_customers.sub
+    environment:
+      CHECKIN_ACTION_URL: ${cf:services.CheckInActionQueueUrl}
+    events:
+      - sns:
+          arn: ${cf:services.PredictTopicArn}
+
+  predict_work_duration:
+    handler: src/predictors/predict_work_duration.sub
+    environment:
+      CHECKIN_ACTION_URL: ${cf:services.CheckInActionQueueUrl}
+    events:
+      - sns:
+          arn: ${cf:services.PredictTopicArn}
+
+  predict_standup:
+    handler: src/predictors/predict_standup.sub
+    environment:
+      CHECKIN_ACTION_URL: ${cf:services.CheckInActionQueueUrl}
+    events:
+      - sns:
+          arn: ${cf:services.PredictTopicArn}
+
+  scheduler_publish:
+    handler: src/scheduler_publish.pub
+    environment:
+      CHECKIN_ACTION_URL: ${cf:services.CheckInActionQueueUrl}
+    events:
+      - schedule: cron(0/5, *, *, *, ?, *)
+      - http:
+          path: scheduler/start
+          method: get
+          cors: true
+          
+  scheduler_monthly_report:
+    handler: src/scheduler_monthly_report.pub
+    events:
+      - schedule: cron(0, 12, 31W, *, ?, *)
+      - http:
+          path: scheduler/report
+          method: get
+          cors: true
+  
+  scheduler_weekly_report:
+    handler: src/scheduler_weekly_report.pub
+    events:
+      - schedule: cron(0, 7, ?, *, 1, *)
+      - http:
+          path: scheduler/weekly
+          method: get
+          cors: true
+  
+  scheduler_import_customers:
+    handler: src/scheduler_import_customers.get
+    events:
+      - schedule: cron(0/5, *, *, *, ?, *)
+      - http:
+          path: scheduler/import
+          method: get
+          cors: true
+
+  get_slack_user_statuses:
+    handler: src/get_slack_user_statuses.get
+    events:
+      - schedule: rate(1 minute)
+
+  ces_consumer:
+    handler: src/checkin_consume.con
+    environment:
+      SQS_URL: ${cf:services.CheckInActionQueueUrl}
+      TIMES_UP_MACHINE:
+        Ref: SchedulerStateMachine
+    events:
+      - sqs:
+          arn: ${cf:services.CheckInActionQueueArn}
+          batchSize: 1
+    
+  ces_slack_queue_publisher:
+    handler: src/slack_queue_publisher.pub
+    environment:
+      SLACK_QUEUE_URL: ${cf:services.SlackAppQueueUrl}
+    
+  receipt_sender:
+    handler: src/send_checkin_receipt.send
+
+  combine_template_to_slack:
+    handler: src/combine_template_to_slack.consume
+    environment:
+      SLACK_QUEUE_URL: ${cf:services.SlackAppQueueUrl}
+    events:
+      - sqs:
+          arn: ${cf:services.SlackAppQueueArn}
+          batchSize: 1
+  
+  sign_up_user:
+    handler: src/sign_up_command.signup
+    events:
+      - http:
+          path: signup/start
+          method: post
+          cors: true
+          integration: lambda
+
+  time_reg_beforehand:
+    handler: src/time_reg_command.command
+    environment:
+      CHECKIN_ACTION_URL: ${cf:services.CheckInActionQueueUrl}
+    events:
+      - http:
+          path: time_reg/checkin
+          method: post
+          cors: true
+          integration: lambda
+
+stepFunctions:
+  stateMachines:
+    scheduler_step_function:
+      id: SchedulerStateMachine
+      name: "scheduler_state_machine_${self:custom.currentStage}"
+      definition:
+        Comment: "Step Function for Scheduler"
+        StartAt: Wait_10
+        States:
+          Wait_10:
+            Type: Wait
+            Seconds: 10
+            Next: CESSlackQueuePublisher
+          CESSlackQueuePublisher:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [ces_slack_queue_publisher, Arn]
+            End: true
+    receipt_step_function:
+      id: ReceiptStateMachine
+      name: "receipt_state_machine_${self:custom.currentStage}"
+      definition:
+        Comment: "Step Function for Receipts"
+        StartAt: Wait_5
+        States:
+          Wait_5:
+            Type: Wait
+            Seconds: 5
+            Next: SendReceipt
+          SendReceipt:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [receipt_sender, Arn]
+            End: true

@@ -1,0 +1,86 @@
+{
+	"type": "modal",
+	"title": {
+		"type": "plain_text",
+		"text": "Checkin Service",
+		"emoji": true
+	},
+	"submit": {
+		"type": "plain_text",
+		"text": "Next",
+		"emoji": true
+	},
+	"close": {
+		"type": "plain_text",
+		"text": "Previous",
+		"emoji": true
+	},
+	"blocks": [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": ""
+			}
+		},
+		{
+			"type": "actions",
+            "block_id": "absence_selector",
+			"elements": [
+				{
+					"type": "radio_buttons",
+					"options": [
+						{
+							"text": {
+								"type": "mrkdwn",
+								"text": "*Sickness*"
+							},
+							"value": "absence;sickness"
+						},
+						{
+							"text": {
+								"type": "mrkdwn",
+								"text": "*Vacation*"
+							},
+							"value": "absence;vaction"
+						}
+					],
+					"action_id": "absence_type"
+				}
+			]
+		},
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "*Dates (From - To)*"
+			}
+		},
+		{
+            "type": "actions",
+            "block_id": "absence_dates",
+			"elements": [
+				{
+					"type": "datepicker",
+					"initial_date": "1990-04-28",
+					"placeholder": {
+						"type": "plain_text",
+						"text": "Select a date",
+						"emoji": true
+					},
+					"action_id": "absence_from_date"
+				},
+				{
+					"type": "datepicker",
+					"initial_date": "1990-04-28",
+					"placeholder": {
+						"type": "plain_text",
+						"text": "Select a date",
+						"emoji": true
+					},
+					"action_id": "absence_to_date"
+				}
+			]
+		}
+	]
+}

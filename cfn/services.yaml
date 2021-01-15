@@ -1,0 +1,52 @@
+---
+Resources:
+  # Slack App Queue
+  SlackAppQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: "SlackAppQueue"
+  
+  # Checkin Action Queue
+  CheckInActionQueue: 
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: "CheckInActionQueue.fifo"
+      FifoQueue: True
+
+  # Predict Topic
+  PredictSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "PredictTopic"
+
+Outputs:
+  # Slack App Queue Exports
+  SlackAppQueueUrl:
+    Description: The URL from the slack app queue.
+    Value: !Ref SlackAppQueue
+    Export:
+      Name: "slack-app-queue-url"
+  SlackAppQueueArn:
+    Description: The ARN from the slack app queue.
+    Value: !GetAtt SlackAppQueue.Arn
+    Export:
+      Name: "slack-app-queue-arn"
+
+  # Checkin action Queue Exports
+  CheckInActionQueueUrl:
+    Description: The URL from the checkin action queue.
+    Value: !Ref CheckInActionQueue
+    Export:
+      Name: "checkin-action-queue-url"
+  CheckInActionQueueArn:
+    Description: The ARN from the checkin action queue.
+    Value: !GetAtt CheckInActionQueue.Arn
+    Export:
+      Name: "checkin-action-queue-arn"
+
+  # Predict Topic Exports
+  PredictTopicArn:
+    Description: The ARN from the predict topic.
+    Value: !Ref PredictSNSTopic
+    Export:
+      Name: "predict-topic-arn"

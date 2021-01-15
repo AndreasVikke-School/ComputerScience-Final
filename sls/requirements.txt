@@ -1,0 +1,7 @@
+pynamodb==4.3.1
+requests==2.24.0
+typing-extensions==3.7.4.3
+injector
+pytz
+boto3 #no-deploy
+botocore #no-deploy

@@ -1,0 +1,19 @@
+[
+    {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": ""
+        },
+        "accessory": {
+            "type": "button",
+            "style": "primary",
+            "text": {
+                "type": "plain_text",
+                "text": "Start Checkin",
+                "emoji": true
+            },
+            "value": ""
+        }
+    }
+]

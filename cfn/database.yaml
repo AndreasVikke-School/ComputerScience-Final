@@ -1,0 +1,351 @@
+---
+Parameters:
+  ReadCapacity:
+    Default: 5
+    MinValue: 1
+    MaxValue: 10
+    Type: Number
+    Description: Enter a number between 1 and 10.
+  WriteCapacity:
+    Default: 5
+    MinValue: 1
+    MaxValue: 10
+    Type: Number
+    Description: Enter a number between 1 and 10.
+
+Resources:
+  CheckIn:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: true
+      TableName: "check_in"
+      AttributeDefinitions:
+        - AttributeName: "uuid"
+          AttributeType: "S"
+        - AttributeName: "consultant_uuid"
+          AttributeType: "S"
+        - AttributeName: "date"
+          AttributeType: "S"
+        - AttributeName: "device_id"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "uuid"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: !Ref ReadCapacity
+        WriteCapacityUnits: !Ref WriteCapacity
+      GlobalSecondaryIndexes:
+        - 
+          IndexName: "consultant_uuid-date-index"
+          KeySchema:
+            - 
+              AttributeName: "consultant_uuid"
+              KeyType: "HASH"
+            - 
+              AttributeName: "date"
+              KeyType: "RANGE"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "consultant_uuid-device_id-index"
+          KeySchema:
+            - 
+              AttributeName: "consultant_uuid"
+              KeyType: "HASH"
+            - 
+              AttributeName: "device_id"
+              KeyType: "RANGE"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+
+  Consultants:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: true
+      TableName: "consultants"
+      AttributeDefinitions:
+        - AttributeName: "uuid"
+          AttributeType: "S"
+        - AttributeName: "email"
+          AttributeType: "S"
+        - AttributeName: "slack_id"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "uuid"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: !Ref ReadCapacity
+        WriteCapacityUnits: !Ref WriteCapacity
+      GlobalSecondaryIndexes:
+        - 
+          IndexName: "email-index"
+          KeySchema:
+            - 
+              AttributeName: "email"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "slack-id-index"
+          KeySchema:
+            - 
+              AttributeName: "slack_id"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+
+  OnlineStatuses:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: true
+      TableName: "online_statuses"
+      AttributeDefinitions:
+        - AttributeName: "consultant_uuid"
+          AttributeType: "S"
+        - AttributeName: "date"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "consultant_uuid"
+          KeyType: "HASH"
+        - 
+          AttributeName: "date"
+          KeyType: "RANGE"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: !Ref ReadCapacity
+        WriteCapacityUnits: !Ref WriteCapacity
+
+  Customers:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: true
+      TableName: "customers"
+      AttributeDefinitions:
+        - AttributeName: "uuid"
+          AttributeType: "S"
+        - AttributeName: "registrationNo"
+          AttributeType: "S"
+        - AttributeName: "friendlyName"
+          AttributeType: "S"
+        - AttributeName: "legalName"
+          AttributeType: "S"
+        - AttributeName: "active"
+          AttributeType: "S"
+        - AttributeName: "defaultPaymentTerms"
+          AttributeType: "N"
+      KeySchema:
+        - 
+          AttributeName: "uuid"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: !Ref ReadCapacity
+        WriteCapacityUnits: !Ref WriteCapacity
+
+      GlobalSecondaryIndexes:
+        - 
+          IndexName: "registrationNo-index"
+          KeySchema:
+            - 
+              AttributeName: "registrationNo"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "friendlyName-index"
+          KeySchema:
+            - 
+              AttributeName: "friendlyName"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "legalName-index"
+          KeySchema:
+            - 
+              AttributeName: "legalName"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "active-index"
+          KeySchema:
+            - 
+              AttributeName: "active"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "defaultPaymentTerms-index"
+          KeySchema:
+            - 
+              AttributeName: "defaultPaymentTerms"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+
+
+  Contract:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: true
+      TableName: "contract"
+      AttributeDefinitions:
+        - AttributeName: "uuid"
+          AttributeType: "S"
+        - AttributeName: "customerId"
+          AttributeType: "N"
+        - AttributeName: "paymentTerms"
+          AttributeType: "N"
+        - AttributeName: "active"
+          AttributeType: "S"
+        - AttributeName: "consultants"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "uuid"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: !Ref ReadCapacity
+        WriteCapacityUnits: !Ref WriteCapacity
+      GlobalSecondaryIndexes:
+        - 
+          IndexName: "customerId-index"
+          KeySchema:
+            - 
+              AttributeName: "customerId"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "paymentTerms-index"
+          KeySchema:
+            - 
+              AttributeName: "paymentTerms"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "active-index"
+          KeySchema:
+            - 
+              AttributeName: "active"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+        - 
+          IndexName: "consultants-index"
+          KeySchema:
+            - 
+              AttributeName: "consultants"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+  
+  Weights:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      PointInTimeRecoverySpecification: 
+        PointInTimeRecoveryEnabled: true
+      TableName: "weights"
+      AttributeDefinitions:
+        - AttributeName: "uuid"
+          AttributeType: "S"
+        - AttributeName: "name"
+          AttributeType: "S"
+      KeySchema:
+      - 
+        AttributeName: "uuid"
+        KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: !Ref ReadCapacity
+        WriteCapacityUnits: !Ref WriteCapacity
+      GlobalSecondaryIndexes:
+        -
+          IndexName: "name-index"
+          KeySchema:
+            - 
+              AttributeName: "name"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "ALL"
+          ProvisionedThroughput:
+            ReadCapacityUnits: !Ref ReadCapacity
+            WriteCapacityUnits: !Ref WriteCapacity
+
+Outputs:
+  CheckInTableName:
+    Description: The TableName of the CheckIn table
+    Value: !Select [1, !Split ['/', !GetAtt CheckIn.Arn]]
+    Export:
+      Name: "database-CheckInTableName"
+  ConsultantsTableName:
+    Description: The TableName of the Consultants table
+    Value: !Select [1, !Split ['/', !GetAtt Consultants.Arn]] 
+    Export:
+      Name: "database-ConsultantsTableName"
+  OnlineStatusesTableName:
+    Description: The TableName of the Online Statuses table
+    Value: !Select [1, !Split ['/', !GetAtt OnlineStatuses.Arn]] 
+    Export:
+      Name: "database-OnlineStatusesTableName"
+  CustomersTableName:
+    Description: The TableName of the Customers table
+    Value: !Select [1, !Split ['/', !GetAtt Customers.Arn]] 
+    Export:
+      Name: "database-CustomersTableName"
+  ContractTableName:
+    Description: The TableName of the Contract table
+    Value: !Select [1, !Split ['/', !GetAtt Contract.Arn]] 
+    Export:
+      Name: "database-ContractTableName"
+  WeightsTableName:
+    Description: The TableName of the Weight table
+    Value: !Select [1, !Split ['/', !GetAtt Weights.Arn]] 
+    Export:
+      Name: "database-WeightsTableName"
