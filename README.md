@@ -7,8 +7,8 @@ Computer Science final assignment
 This project is a Slack app developed with AWS Cloud
 
 ## Pictures
-<img src="assets/CustomerSelect.png" height="300" />
-<img src="assets/ProjectTimeDesc.png" height="300" />
+<img src="assets/CustomerSelect.png" height="450" />
+<img src="assets/ProjectTimeDesc.png" height="450" />
 
 ## Developers
 - [Andreas Vikke](https://github.com/AndreasVikke)
